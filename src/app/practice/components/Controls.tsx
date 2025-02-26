@@ -12,12 +12,12 @@ export default function Controls({
 }) {
     return (
         <div className="flex justify-center gap-4">
-            <Button onClick={onShow} color="blue" disabled={disabled}>
+            <Button onClick={onShow} color="blue">
                 Show
             </Button>
-            <Button onClick={onNext} color="green" disabled={disabled}>
+            <Button onClick={onNext} color="green">
                 Next
             </Button>
-        </div>
+        </div >
     );
 }

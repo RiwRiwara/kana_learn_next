@@ -70,7 +70,7 @@ export default function Practice() {
         if (!isLoading) {
             updateKana();
         }
-    }, [mode, wordCount, types, script, updateKana]);
+    }, [isLoading, mode, wordCount, types, script, updateKana]);
 
     return (
         <div className="bg-white p-8 rounded-xl shadow-sm text-center w-full max-w-lg">
