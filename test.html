@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hiragana Recognition</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            background-color: #fff;
+            touch-action: none;
+        }
+
+        #result {
+            font-size: 20px;
+            margin-top: 10px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px;
+        }
+
+        #status {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Draw a Hiragana Character</h1>
+    <canvas id="canvas" width="280" height="280"></canvas>
+    <br>
+    <button onclick="predict()" id="predictBtn">Predict</button>
+    <button onclick="clearCanvas()">Clear</button>
+    <div id="result"></div>
+    <div id="status">Ready</div>
+
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <!-- Load TensorFlow.js TFLite runtime (specific version with better op support) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.8/dist/tf-tflite.min.js"></script>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const resultDiv = document.getElementById('result');
+        const statusDiv = document.getElementById('status');
+        const predictBtn = document.getElementById('predictBtn');
+        let drawing = false;
+        let lastX = 0, lastY = 0;
+        let model = null;
+
+        // Canvas drawing setup
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        canvas.addEventListener('touchstart', startDrawingTouch);
+        canvas.addEventListener('touchmove', drawTouch);
+        canvas.addEventListener('touchend', stopDrawing);
+
+        function startDrawing(e) {
+            drawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function startDrawingTouch(e) {
+            e.preventDefault();
+            drawing = true;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            ctx.lineWidth = 20;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function drawTouch(e) {
+            if (!drawing) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            ctx.lineWidth = 20;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            [lastX, lastY] = [x, y];
+        }
+
+        function stopDrawing() {
+            drawing = false;
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            resultDiv.innerText = '';
+            statusDiv.innerText = 'Ready';
+            predictBtn.disabled = false;
+        }
+
+        // Load the TFLite model with enhanced error handling
+        async function loadModel() {
+            if (model) return model;
+            statusDiv.innerText = 'Loading model...';
+            predictBtn.disabled = true;
+            try {
+                // Verify model URL accessibility first
+                const response = await fetch('https://firstdraw.blob.core.windows.net/kanaln/hiragana_full_model.tflite', { method: 'HEAD' });
+                if (!response.ok) {
+                    throw new Error(`Model URL inaccessible: ${response.status} ${response.statusText}`);
+                }
+
+                const tfliteModel = await tflite.loadTFLiteModel(
+                    'https://firstdraw.blob.core.windows.net/kanaln/hiragana_full_model.tflite'
+                );
+                model = tfliteModel;
+                statusDiv.innerText = 'Model loaded successfully';
+                predictBtn.disabled = false;
+                return model;
+            } catch (error) {
+                statusDiv.innerText = 'Error loading model: ' + error.message;
+                predictBtn.disabled = false;
+                throw error;
+            }
+        }
+
+        // Predict function with improved preprocessing and error handling
+        async function predict() {
+            statusDiv.innerText = 'Predicting...';
+            predictBtn.disabled = true;
+            try {
+                const model = await loadModel();
+
+                // Preprocess canvas image with validation
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const tensor = tf.tidy(() => {
+                    const grayscale = tf.browser.fromPixels(imgData, 1);
+                    if (grayscale.shape[0] === 0 || grayscale.shape[1] === 0) {
+                        throw new Error('No drawing detected on canvas');
+                    }
+                    return grayscale
+                        .resizeBilinear([28, 28])
+                        .toFloat()
+                        .div(255.0)
+                        .expandDims(0);
+                });
+
+                // Run prediction
+                const output = model.predict(tensor);
+                const prediction = output.dataSync();
+                const predictedClass = prediction.indexOf(Math.max(...prediction));
+
+                // Clean up tensors
+                tf.dispose(tensor);
+                tf.dispose(output);
+
+                // Map to 46 basic Hiragana characters
+                const hiraganaMap = [
+                    'あ', 'い', 'う', 'え', 'お',
+                    'か', 'き', 'く', 'け', 'こ',
+                    'さ', 'し', 'す', 'せ', 'そ',
+                    'た', 'ち', 'つ', 'て', 'と',
+                    'な', 'に', 'ぬ', 'ね', 'の',
+                    'は', 'ひ', 'ふ', 'へ', 'ほ',
+                    'ま', 'み', 'む', 'め', 'も',
+                    'や', 'ゆ', 'よ',
+                    'ら', 'り', 'る', 'れ', 'ろ',
+                    'わ', 'を', 'ん'
+                ];
+                resultDiv.innerText = `Predicted: ${hiraganaMap[predictedClass]}`;
+                statusDiv.innerText = 'Prediction complete';
+            } catch (error) {
+                resultDiv.innerText = '';
+                statusDiv.innerText = 'Prediction failed: ' + error.message;
+            } finally {
+                predictBtn.disabled = false;
+            }
+        }
+
+        // Preload model on page load for faster first prediction
+        window.addEventListener('load', () => {
+            loadModel().catch(err => console.error('Initial model load failed:', err));
+        });
+    </script>
+</body>
+
+</html>

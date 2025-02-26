@@ -13,7 +13,8 @@ export default function Navbar() {
         <nav className="bg-white shadow-md p-4 fixed top-0 left-0 w-full z-10">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <Link href="/" className="text-2xl font-bold text-blue-600">
-                    Kana Learn
+                    Kana Write Learn 
+                    <span className="text-xs font-light text-gray-500 ml-2 ">by Riwara</span>
                 </Link>
                 <div className="hidden md:flex items-center space-x-6">
                     <Link href="/" className="text-gray-700 hover:text-blue-500 transition">
