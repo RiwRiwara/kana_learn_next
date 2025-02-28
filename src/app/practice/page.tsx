@@ -19,6 +19,32 @@ export default function Practice() {
     const [kana, setKana] = useState<string>('');
     const [showAnswer, setShowAnswer] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
+    const [hasInteracted, setHasInteracted] = useState<boolean>(false);
+
+    const playSound = useCallback((romanji: string) => {
+        if (!soundEnabled || !hasInteracted) return;
+
+        const baseUrl = 'https://www.coscom.co.jp/hiragana-katakana/au50on/';
+        const syllables = romanji.split(/[- ]/); // Split on hyphen or space
+        
+        let currentIndex = 0;
+
+        const playNext = () => {
+            if (currentIndex >= syllables.length) return;
+
+            const audio = new Audio(`${baseUrl}kana50on_${syllables[currentIndex]}.mp3`);
+            currentIndex++;
+            
+            audio.addEventListener('ended', playNext);
+            audio.play().catch(error => {
+                console.error('Error playing sound:', error);
+                playNext(); // Continue even if one sound fails
+            });
+        };
+
+        playNext();
+    }, [soundEnabled, hasInteracted]);
 
     const updateKana = useCallback(() => {
         try {
@@ -26,6 +52,7 @@ export default function Practice() {
             setRomanji(romanji);
             setKana(kana);
             setShowAnswer(false);
+            if (hasInteracted) playSound(romanji); // Only play if user has interacted
             console.log(`Script: ${script}, Romanji: ${romanji}, Kana: ${kana}`);
         } catch (error) {
             console.error('Error fetching kana:', error);
@@ -33,10 +60,11 @@ export default function Practice() {
             setKana('エラー');
             setShowAnswer(true);
         }
-    }, [mode, wordCount, types, script]);
+    }, [mode, wordCount, types, script, playSound, hasInteracted]);
 
     const handleKeyDown = useCallback(
         (event: KeyboardEvent) => {
+            setHasInteracted(true); // Mark interaction on any key press
             switch (event.key) {
                 case ' ':
                     event.preventDefault();
@@ -54,6 +82,11 @@ export default function Practice() {
         },
         [updateKana]
     );
+
+    const handlePlaySound = () => {
+        setHasInteracted(true); // Mark interaction when manually playing
+        playSound(romanji);
+    };
 
     useEffect(() => {
         setIsLoading(true);
@@ -83,11 +116,21 @@ export default function Practice() {
                 wordCount={wordCount}
                 setWordCount={setWordCount}
             />
-            <Checkboxes types={types} setTypes={setTypes} />
+            <Checkboxes 
+                types={types} 
+                setTypes={setTypes}
+                soundEnabled={soundEnabled}
+                setSoundEnabled={setSoundEnabled}
+            />
             {isLoading ? (
                 <div className="text-6xl font-light mb-8 animate-pulse">Loading...</div>
             ) : (
-                <KanaDisplay romanji={romanji} kana={kana} showAnswer={showAnswer} />
+                <KanaDisplay 
+                    romanji={romanji} 
+                    kana={kana} 
+                    showAnswer={showAnswer}
+                    onPlaySound={handlePlaySound}
+                />
             )}
             <Controls
                 onShow={() => setShowAnswer((prev) => !prev)}
